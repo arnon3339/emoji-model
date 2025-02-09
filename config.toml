@@ -1,0 +1,17 @@
+[default]
+max_input_length = 120
+epochs = 10
+batch_size = 10
+number_trails = 20
+
+[path]
+data_files = "datasets/downloads"
+dataset = "datasets/dataset.csv"
+
+[path.plot]
+dataset_length_dist = "outputs/plots/len_dist.png"
+
+[tunning]
+batch_size = [8, 16, 32]
+learning_rate = [1e-6, 1e-4]
+number_trails = 32
