@@ -12,8 +12,9 @@ def objective(trial):
                                                 CONFIG['tunning']['batch_size']
                                              )
 
-    model = AiModel(batch_size=batch_size)
-    auc = model.fit(learning_rate=learning_rate)
+    model = AiModel(batch_size=batch_size, learning_rate=learning_rate,
+                    epochs=CONFIG['tunning']['epochs'])
+    auc = model.fit()
 
     return auc
 

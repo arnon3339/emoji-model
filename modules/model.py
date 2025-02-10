@@ -46,9 +46,11 @@ def weighted_binary_crossentropy(class_weights_tensor):
     return loss
 
 class AiModel:
-    def __init__(self, batch_size=16, max_legth=128):
+    def __init__(self, batch_size=16, max_legth=128, epochs = 5, learning_rate=1e-5):
         self.max_legth = max_legth
         self.batch_size =  batch_size
+        self.learning_rate = learning_rate
+        self.epochs = epochs
 
         df = pd.read_csv(CONFIG['path']['dataset'], index_col=False)
         self.train_texts, self.test_texts, self.train_labels, self.test_labels =\
@@ -57,6 +59,7 @@ class AiModel:
             train_test_split(self.test_texts, self.test_labels, random_state=42, test_size=0.5)
 
         self.pretrain_name = "bert-base-uncased"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.pretrain_name)
         
         labels = self.train_labels.values
         self.num_labels = len(labels[0])
@@ -80,8 +83,7 @@ class AiModel:
             texts = self.train_texts.values.tolist()
             labels = self.train_labels.values.tolist()
 
-        tokenizer = AutoTokenizer.from_pretrained(self.pretrain_name)
-        tokens = tokenizer(texts, padding=True, truncation=True, max_length=self.max_legth,
+        tokens = self.tokenizer(texts, padding=True, truncation=True, max_length=self.max_legth,
                         return_tensors="np")
 
         class_weights = np.array([self.class_weights[i] for i in range(len(self.class_weights))])
@@ -108,16 +110,21 @@ class AiModel:
         model.config.problem_type = "multi_label_classification"
         return model
 
-    def fit(self, learning_rate=2e-5):
+    def fit(self):
         model = self.get_pretrain()
         train_dataset = self.get_dataset_for_tensor(kind="train")
         val_dataset = self.get_dataset_for_tensor(kind="val")
 
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
             loss=weighted_binary_crossentropy(self.class_weights_tensor),
-            metrics=["accuracy", tf.keras.metrics.AUC(multi_label=True)],
-            run_eagerly=False, # ✅ Ensures debugging output is accurate
+            metrics=[
+                "accuracy",
+                tf.keras.metrics.AUC(multi_label=True),
+                tf.keras.metrics.Precision(name="precision"),
+                tf.keras.metrics.Recall(name="recall")
+            ],
+            run_eagerly=False,  
             weighted_metrics=[]
         )
 
@@ -125,12 +132,12 @@ class AiModel:
         history = model.fit(
             train_dataset,
             validation_data=val_dataset,
-            epochs=5,
+            epochs=self.epochs,
             verbose=1
             )
         
-        # ✅ Extract the highest validation AUC
-        best_val_auc = max(history.history.get("val_auc", [0]))
+        val_auc_keys = [key for key in history.history.keys() if "val_auc" in key]
+        best_val_auc = max([max(history.history[key]) for key in val_auc_keys])        
 
         return best_val_auc
 
